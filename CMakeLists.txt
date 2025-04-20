@@ -44,6 +44,8 @@ pico_set_program_version(ATIVIDADE_REVISAO "0.1")
 pico_enable_stdio_uart(ATIVIDADE_REVISAO 1)
 pico_enable_stdio_usb(ATIVIDADE_REVISAO 1)
 
+pico_generate_pio_header(ATIVIDADE_REVISAO ${CMAKE_CURRENT_LIST_DIR}/ws2818b.pio)
+
 # Add the standard library to the build
 target_link_libraries(ATIVIDADE_REVISAO
         pico_stdlib)
@@ -58,6 +60,8 @@ target_link_libraries(ATIVIDADE_REVISAO
             pico_bootrom
             hardware_i2c
             hardware_adc
+            hardware_clocks
+            hardware_pio
         )
 
 pico_add_extra_outputs(ATIVIDADE_REVISAO)

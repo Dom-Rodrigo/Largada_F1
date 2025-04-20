@@ -1,22 +1,107 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
+#include "ws2818b.pio.h"
 #include "pico/bootrom.h"
 #include "inc/ssd1306.h"
 #include "hardware/adc.h"
+#include "hardware/pio.h"
+#include "hardware/clocks.h"
+
+
 
 #define VRX 27 // input 1 s:24 h:1885 b:4090
 #define VRY 26 // input 0 s:24 h:2087 b:4090
-#define LED_GREEN 11
-#define LED_BLUE 12
-#define LED_RED 13
 #define BUTTON_BOOTSEL 22
 #define I2C_PORT i2c1
 #define I2C_SDA 14
 #define I2C_SCL 15
 #define endereco 0x3C
 
+
 ssd1306_t ssd; // Inicializa a estrutura do display
 
+// Definição do número de LEDs e pino.
+#define LED_COUNT 25
+#define LED_PIN 7
+#define START_COUNT_BUTTON 5
+
+// Definição de pixel GRB
+struct pixel_t
+{
+    uint8_t G, R, B; // Três valores de 8-bits compõem um pixel.
+};
+typedef struct pixel_t pixel_t;
+typedef pixel_t npLED_t; // Mudança de nome de "struct pixel_t" para "npLED_t" por clareza.
+
+// Declaração do buffer de pixels que formam a matriz.
+npLED_t leds[LED_COUNT];
+
+// Variáveis para uso da máquina PIO.
+PIO np_pio;
+uint sm;
+
+/**
+ * Inicializa a máquina PIO para controle da matriz de LEDs.
+ */
+void npInit(uint pin)
+{
+
+    // Cria programa PIO.
+    uint offset = pio_add_program(pio0, &ws2818b_program);
+    np_pio = pio0;
+
+    // Toma posse de uma máquina PIO.
+    sm = pio_claim_unused_sm(np_pio, false);
+    if (sm < 0)
+    {
+        np_pio = pio1;
+        sm = pio_claim_unused_sm(np_pio, true); // Se nenhuma máquina estiver livre, panic!
+    }
+
+    // Inicia programa na máquina PIO obtida.
+    ws2818b_program_init(np_pio, sm, offset, pin, 800000.f);
+
+    // Limpa buffer de pixels.
+    for (uint i = 0; i < LED_COUNT; ++i)
+    {
+        leds[i].R = 0;
+        leds[i].G = 0;
+        leds[i].B = 0;
+    }
+}
+/**
+ * Atribui uma cor RGB a um LED.
+ */
+void npSetLED(const uint index, const uint8_t r, const uint8_t g, const uint8_t b)
+{
+    leds[index].R = r;
+    leds[index].G = g;
+    leds[index].B = b;
+}
+
+/**
+ * Limpa o buffer de pixels.
+ */
+void npClear()
+{
+    for (uint i = 0; i < LED_COUNT; ++i)
+        npSetLED(i, 0, 0, 0);
+}
+
+/**
+ * Escreve os dados do buffer nos LEDs.
+ */
+void npWrite()
+{
+    // Escreve cada dado de 8-bits dos pixels em sequência no buffer da máquina PIO.
+    for (uint i = 0; i < LED_COUNT; ++i)
+    {
+        pio_sm_put_blocking(np_pio, sm, leds[i].G);
+        pio_sm_put_blocking(np_pio, sm, leds[i].R);
+        pio_sm_put_blocking(np_pio, sm, leds[i].B);
+    }
+    sleep_us(100); // Espera 100us, sinal de RESET do datasheet.
+}
 
 volatile uint32_t last_time;
 void gpio_irq_handler(uint gpio, uint32_t event_mask) {
@@ -60,7 +145,14 @@ void blit(){
 
 int main()
 {
+
+
+  
     stdio_init_all();
+
+    npInit(LED_PIN);
+    npClear();
+
     adc_init();
     i2c_init(I2C_PORT, 400 * 1000); // Inicia o i2c com 400kHz
 
@@ -83,9 +175,40 @@ int main()
     gpio_set_dir(BUTTON_BOOTSEL, GPIO_IN);
     gpio_pull_up(BUTTON_BOOTSEL);
 
+    gpio_init(START_COUNT_BUTTON);
+    gpio_set_dir(START_COUNT_BUTTON, GPIO_IN);
+    gpio_pull_up(START_COUNT_BUTTON);
+
     gpio_set_irq_enabled_with_callback(BUTTON_BOOTSEL, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
 
+    uint counted = 0;
     while (true) {
+        if (!gpio_get(START_COUNT_BUTTON)){
+            if (counted == 0) {
+                npSetLED(4, 255, 0, 0);
+                npWrite();
+                sleep_ms(1000);
+                npSetLED(3, 255, 0, 0);
+                npWrite();
+                sleep_ms(1000);
+                npSetLED(2, 255, 0, 0);
+                npWrite();
+                sleep_ms(1000);
+                npSetLED(1, 255, 0, 0);
+                npWrite();
+                sleep_ms(1000);
+                npSetLED(0, 255, 0, 0);
+                npWrite();
+                counted = 1;
+                sleep_ms(200);
+            }
+            else {
+                npClear();
+                npWrite();
+                counted = 0;
+                sleep_ms(3000);
+            }
+        }
 
         blit();
         adc_select_input(0);
