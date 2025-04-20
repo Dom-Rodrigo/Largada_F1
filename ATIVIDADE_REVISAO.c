@@ -7,6 +7,8 @@
 #include "hardware/pio.h"
 #include "hardware/clocks.h"
 #include "hardware/timer.h"
+#include "hardware/pwm.h"
+
 
 
 #define VRX 27 // input 1 s:24 h:1885 b:4090
@@ -24,6 +26,11 @@ ssd1306_t ssd; // Inicializa a estrutura do display
 #define LED_COUNT 25
 #define LED_PIN 7
 #define START_COUNT_BUTTON 5
+
+
+#define BUZZER_PIN 10
+// Configuração da frequência do buzzer (em Hz)
+#define BUZZER_FREQUENCY 100
 
 // Definição de pixel GRB
 struct pixel_t
@@ -104,7 +111,8 @@ void npWrite()
 }
 
 volatile uint32_t last_time;
-volatile int start=4;
+volatile int start=-1;
+bool apagou = true;
 void gpio_irq_handler(uint gpio, uint32_t event_mask) {
     uint32_t current_time = to_us_since_boot(get_absolute_time());
     if (current_time - last_time > 200000){
@@ -113,6 +121,7 @@ void gpio_irq_handler(uint gpio, uint32_t event_mask) {
             rom_reset_usb_boot(0, 0);
         }
         if (!gpio_get(START_COUNT_BUTTON)){
+            if (apagou)
                 start = 4;
         } 
     }   
@@ -147,9 +156,31 @@ void blit(){
 
 }
 
+bool acendeu=false;
 bool repeating_timer_callback(struct repeating_timer *t){
     start--;
+    acendeu=true;
+    
 }
+
+// Definição de uma função para inicializar o PWM no pino do buzzer
+void pwm_init_buzzer(uint pin)
+{
+    // Configurar o pino como saída de PWM
+    gpio_set_function(pin, GPIO_FUNC_PWM);
+
+    // Obter o slice do PWM associado ao pino
+    uint slice_num = pwm_gpio_to_slice_num(pin);
+
+    // Configurar o PWM com frequência desejada
+    pwm_config config = pwm_get_default_config();
+    pwm_config_set_clkdiv(&config, clock_get_hz(clk_sys) / (BUZZER_FREQUENCY * 4096)); // Divisor de clock
+    pwm_init(slice_num, &config, true);
+
+    // Iniciar o PWM no nível baixo
+    pwm_set_gpio_level(pin, 0);
+}
+
 int main()
 {
 
@@ -186,22 +217,46 @@ int main()
     gpio_set_dir(START_COUNT_BUTTON, GPIO_IN);
     gpio_pull_up(START_COUNT_BUTTON);
 
+
+    gpio_init(BUZZER_PIN);
+    gpio_set_dir(BUZZER_PIN, GPIO_OUT);
+    pwm_init_buzzer(BUZZER_PIN);
+
     gpio_set_irq_enabled_with_callback(BUTTON_BOOTSEL, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
     gpio_set_irq_enabled_with_callback(START_COUNT_BUTTON, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
 
     uint counted = 0;
     struct repeating_timer timer;
     add_repeating_timer_ms(1000, repeating_timer_callback, NULL, &timer);
+
     while (true) {
 
-        if (start>=0){
-                npSetLED(start, 255, 0, 0);
-                npWrite();
-        }
-        else{
+        if (start < 0){
             npClear();
             npWrite();
+            apagou=true;
         }
+        else{
+                npSetLED(start, 255, 0, 0);
+                // Configurar o duty cycle para 25% (ativo)
+                if (acendeu){
+                    apagou=false;
+                    uint slice_num = pwm_gpio_to_slice_num(BUZZER_PIN);
+                    pwm_set_gpio_level(BUZZER_PIN, 2048);
+                    sleep_ms(200);
+                    pwm_set_gpio_level(BUZZER_PIN, 0); 
+                }
+
+                // Obter o slice do PWM associado ao pino
+
+            
+            
+                acendeu=false;
+                npWrite();
+                // Desativar o sinal PWM (duty cycle 0)
+
+        }   
+
         blit();
         adc_select_input(0);
         uint16_t vry_value = adc_read();
