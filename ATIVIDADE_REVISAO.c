@@ -124,7 +124,7 @@ void gpio_irq_handler(uint gpio, uint32_t event_mask) {
         }
         if (!gpio_get(START_COUNT_BUTTON)){
             if (apagou){
-                printf("%dms \n", (current_time-apagou_time)/1000);
+                printf("Tempo de reação: %d (ms) \n", (current_time-apagou_time)/1000);
                 exact_time=false;
                 start = 4;
 
@@ -232,7 +232,7 @@ int main()
 
     uint counted = 0;
     struct repeating_timer timer;
-    add_repeating_timer_ms(1000, repeating_timer_callback, NULL, &timer);
+    add_repeating_timer_ms(1000, repeating_timer_callback, NULL, &timer); // Falta ligar o timer só quando apertar no botão
 
     while (true) {
 
