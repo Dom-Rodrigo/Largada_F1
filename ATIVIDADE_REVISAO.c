@@ -111,8 +111,10 @@ void npWrite()
 }
 
 volatile uint32_t last_time;
+volatile uint32_t apagou_time;
 volatile int start=-1;
-bool apagou = true;
+bool exact_time = false;
+bool apagou = false;
 void gpio_irq_handler(uint gpio, uint32_t event_mask) {
     uint32_t current_time = to_us_since_boot(get_absolute_time());
     if (current_time - last_time > 200000){
@@ -121,8 +123,12 @@ void gpio_irq_handler(uint gpio, uint32_t event_mask) {
             rom_reset_usb_boot(0, 0);
         }
         if (!gpio_get(START_COUNT_BUTTON)){
-            if (apagou)
+            if (apagou){
+                printf("%dms \n", (current_time-apagou_time)/1000);
+                exact_time=false;
                 start = 4;
+
+            }
         } 
     }   
 }
@@ -147,7 +153,6 @@ void handle_display_rect(uint16_t vrx_value, uint16_t vry_value){
                 
             ssd1306_rect(&ssd, y_pos, x_pos, 8, 8, true, true); // Desenha um retângulo
             ssd1306_send_data(&ssd); // LEMBRAR DE FAZER QUE NÂO SAIA DA BORDA
-            printf("x: %d, y: %d\n", x_pos, y_pos);
 }
 
 void blit(){
@@ -235,6 +240,11 @@ int main()
             npClear();
             npWrite();
             apagou=true;
+            if (!exact_time){
+                apagou_time = to_us_since_boot(get_absolute_time());
+                exact_time=true;
+            }
+
         }
         else{
                 npSetLED(start, 255, 0, 0);
@@ -255,7 +265,7 @@ int main()
                 npWrite();
                 // Desativar o sinal PWM (duty cycle 0)
 
-        }   
+        }
 
         blit();
         adc_select_input(0);
