@@ -18,12 +18,12 @@
 #define I2C_SDA 14
 #define I2C_SCL 15
 #define endereco 0x3C
-
+#define LED_RED 13
 
 ssd1306_t ssd; // Inicializa a estrutura do display
 
 // Definição do número de LEDs e pino.
-#define LED_COUNT 25
+#define LED_COUNT 5
 #define LED_PIN 7
 #define START_COUNT_BUTTON 5
 
@@ -112,9 +112,10 @@ void npWrite()
 
 volatile uint32_t last_time;
 volatile uint32_t apagou_time;
-volatile int start=-1;
 bool exact_time = false;
 bool apagou = false;
+bool start = false;
+volatile uint position = -1;
 void gpio_irq_handler(uint gpio, uint32_t event_mask) {
     uint32_t current_time = to_us_since_boot(get_absolute_time());
     if (current_time - last_time > 200000){
@@ -129,8 +130,8 @@ void gpio_irq_handler(uint gpio, uint32_t event_mask) {
             if (apagou){
                 printf("Tempo de reação: %d (ms) \n", (current_time-apagou_time)/1000);
                 exact_time=false;
-                start = 4;
-
+                start = true;
+                position=5;
             }
         } 
     }   
@@ -166,8 +167,10 @@ void blit(){
 
 bool acendeu=false;
 bool repeating_timer_callback(struct repeating_timer *t){
-    start--;
+    //printf("POSITION: %d\n", position);
+    position--;
     acendeu=true;
+    return true;
     
 }
 
@@ -230,6 +233,9 @@ int main()
     gpio_set_dir(BUZZER_PIN, GPIO_OUT);
     pwm_init_buzzer(BUZZER_PIN);
 
+    gpio_init(LED_RED);
+    gpio_set_dir(LED_RED, GPIO_OUT);
+
     gpio_set_irq_enabled_with_callback(BUTTON_BOOTSEL, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
     gpio_set_irq_enabled_with_callback(START_COUNT_BUTTON, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler); // Dispara o timer
 
@@ -239,20 +245,23 @@ int main()
 
     while (true) {
 
-        if (start < 0){ // Chegou no ultimo led, limpa tudo (como tá no timer só para depois de 1 seugndo que acendeu o ultimo)
+        if (!start){ // Chegou no ultimo led, limpa tudo (como tá no timer só para depois de 1 seugndo que acendeu o ultimo)
             npClear();
             npWrite();
-            apagou=true;
             if (!exact_time){
                 apagou_time = to_us_since_boot(get_absolute_time()); // Coleta o tempo exato parou
                 exact_time=true;
             }
+            apagou=true;
+            acendeu=false;
 
         }
         else{
-                npSetLED(start, 255, 0, 0);
+            if (acendeu){
+                npSetLED(position, 255, 0, 0);
+                npWrite();
                 // Configurar o duty cycle para 25% (ativo)
-                if (acendeu){
+                if (acendeu && position<5){
                     apagou=false;
                     uint slice_num = pwm_gpio_to_slice_num(BUZZER_PIN);
                     pwm_set_gpio_level(BUZZER_PIN, 2048);
@@ -260,13 +269,18 @@ int main()
                     pwm_set_gpio_level(BUZZER_PIN, 0); 
                 }
 
+
                 // Obter o slice do PWM associado ao pino
 
             
-            
+                //printf("T. restante: %d\n", remaining_alarm_time_ms(timer.alarm_id));
                 acendeu=false;
-                npWrite();
+                if (position == 0)
+                    start=false;
+                    
                 // Desativar o sinal PWM (duty cycle 0)
+
+            }
 
         }
 
