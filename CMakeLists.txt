@@ -62,6 +62,7 @@ target_link_libraries(ATIVIDADE_REVISAO
             hardware_adc
             hardware_clocks
             hardware_pio
+            hardware_timer
         )
 
 pico_add_extra_outputs(ATIVIDADE_REVISAO)

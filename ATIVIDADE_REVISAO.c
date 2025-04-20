@@ -6,7 +6,7 @@
 #include "hardware/adc.h"
 #include "hardware/pio.h"
 #include "hardware/clocks.h"
-
+#include "hardware/timer.h"
 
 
 #define VRX 27 // input 1 s:24 h:1885 b:4090
@@ -104,6 +104,7 @@ void npWrite()
 }
 
 volatile uint32_t last_time;
+volatile int start=4;
 void gpio_irq_handler(uint gpio, uint32_t event_mask) {
     uint32_t current_time = to_us_since_boot(get_absolute_time());
     if (current_time - last_time > 200000){
@@ -111,6 +112,9 @@ void gpio_irq_handler(uint gpio, uint32_t event_mask) {
             last_time = current_time;
             rom_reset_usb_boot(0, 0);
         }
+        if (!gpio_get(START_COUNT_BUTTON)){
+                start = 4;
+        } 
     }   
 }
 
@@ -143,6 +147,9 @@ void blit(){
 
 }
 
+bool repeating_timer_callback(struct repeating_timer *t){
+    start--;
+}
 int main()
 {
 
@@ -180,36 +187,21 @@ int main()
     gpio_pull_up(START_COUNT_BUTTON);
 
     gpio_set_irq_enabled_with_callback(BUTTON_BOOTSEL, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
+    gpio_set_irq_enabled_with_callback(START_COUNT_BUTTON, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
 
     uint counted = 0;
+    struct repeating_timer timer;
+    add_repeating_timer_ms(1000, repeating_timer_callback, NULL, &timer);
     while (true) {
-        if (!gpio_get(START_COUNT_BUTTON)){
-            if (counted == 0) {
-                npSetLED(4, 255, 0, 0);
-                npWrite();
-                sleep_ms(1000);
-                npSetLED(3, 255, 0, 0);
-                npWrite();
-                sleep_ms(1000);
-                npSetLED(2, 255, 0, 0);
-                npWrite();
-                sleep_ms(1000);
-                npSetLED(1, 255, 0, 0);
-                npWrite();
-                sleep_ms(1000);
-                npSetLED(0, 255, 0, 0);
-                npWrite();
-                counted = 1;
-                sleep_ms(200);
-            }
-            else {
-                npClear();
-                npWrite();
-                counted = 0;
-                sleep_ms(3000);
-            }
-        }
 
+        if (start>=0){
+                npSetLED(start, 255, 0, 0);
+                npWrite();
+        }
+        else{
+            npClear();
+            npWrite();
+        }
         blit();
         adc_select_input(0);
         uint16_t vry_value = adc_read();
