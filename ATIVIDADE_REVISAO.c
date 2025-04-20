@@ -123,6 +123,9 @@ void gpio_irq_handler(uint gpio, uint32_t event_mask) {
             rom_reset_usb_boot(0, 0);
         }
         if (!gpio_get(START_COUNT_BUTTON)){
+            if (!apagou){
+                printf("Queimou!\n");
+            }
             if (apagou){
                 printf("Tempo de reação: %d (ms) \n", (current_time-apagou_time)/1000);
                 exact_time=false;
@@ -228,7 +231,7 @@ int main()
     pwm_init_buzzer(BUZZER_PIN);
 
     gpio_set_irq_enabled_with_callback(BUTTON_BOOTSEL, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
-    gpio_set_irq_enabled_with_callback(START_COUNT_BUTTON, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
+    gpio_set_irq_enabled_with_callback(START_COUNT_BUTTON, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler); // Dispara o timer
 
     uint counted = 0;
     struct repeating_timer timer;
@@ -236,12 +239,12 @@ int main()
 
     while (true) {
 
-        if (start < 0){
+        if (start < 0){ // Chegou no ultimo led, limpa tudo (como tá no timer só para depois de 1 seugndo que acendeu o ultimo)
             npClear();
             npWrite();
             apagou=true;
             if (!exact_time){
-                apagou_time = to_us_since_boot(get_absolute_time());
+                apagou_time = to_us_since_boot(get_absolute_time()); // Coleta o tempo exato parou
                 exact_time=true;
             }
 
