@@ -256,6 +256,7 @@ int main()
 
         if (!start){ // Chegou no ultimo led, limpa tudo (como tá no timer só para depois de 1 seugndo que acendeu o ultimo)
             npClear();
+            srand(to_us_since_boot(get_absolute_time()));
             npWrite();
             if (!exact_time){
                 apagou_time = to_us_since_boot(get_absolute_time()); // Coleta o tempo exato parou
@@ -286,6 +287,11 @@ int main()
                 acendeu=false;
                 if (position == 0)
                     start=false;
+
+                if (position == 0){
+                    int num = rand() % 2000 + 1; // Numero aleatorio faz com que a ultima luz se apague entre 1 a 3 segundos
+                    sleep_ms(num);
+                }
                     
                 // Desativar o sinal PWM (duty cycle 0)
 
