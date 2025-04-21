@@ -19,6 +19,7 @@
 #define I2C_SCL 15
 #define endereco 0x3C
 #define LED_RED 13
+#define LED_GREEN 11
 
 ssd1306_t ssd; // Inicializa a estrutura do display
 
@@ -126,9 +127,13 @@ void gpio_irq_handler(uint gpio, uint32_t event_mask) {
         if (!gpio_get(START_COUNT_BUTTON)){
             if (!apagou){
                 printf("Queimou!\n");
+                gpio_put(LED_RED, 1);
+                gpio_put(LED_GREEN, 1);
             }
             if (apagou){
                 printf("Tempo de reação: %d (ms) \n", (current_time-apagou_time)/1000);
+                gpio_put(LED_RED, 0);
+                gpio_put(LED_GREEN, 0);
                 exact_time=false;
                 start = true;
                 position=5;
@@ -235,6 +240,10 @@ int main()
 
     gpio_init(LED_RED);
     gpio_set_dir(LED_RED, GPIO_OUT);
+
+
+    gpio_init(LED_GREEN);
+    gpio_set_dir(LED_GREEN, GPIO_OUT);
 
     gpio_set_irq_enabled_with_callback(BUTTON_BOOTSEL, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
     gpio_set_irq_enabled_with_callback(START_COUNT_BUTTON, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler); // Dispara o timer
